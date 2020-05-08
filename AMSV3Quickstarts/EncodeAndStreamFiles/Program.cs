@@ -484,19 +484,16 @@ namespace EncodeAndStreamFiles
             IAzureMediaServicesClient client,
             string resourceGroupName,
             string accountName,
-            string transformName)
+            string transformName,
+            string contentKeyPolicyName,
+            List<string> assetNames,
+            string jobName)
         {
+            await client.Jobs.DeleteAsync(resourceGroupName, accountName, transformName, jobName);
 
-            var jobs = await client.Jobs.ListAsync(resourceGroupName, accountName, transformName);
-            foreach (var job in jobs)
+            foreach (var assetName in assetNames)
             {
-                await client.Jobs.DeleteAsync(resourceGroupName, accountName, transformName, job.Name);
-            }
-
-            var assets = await client.Assets.ListAsync(resourceGroupName, accountName);
-            foreach (var asset in assets)
-            {
-                await client.Assets.DeleteAsync(resourceGroupName, accountName, asset.Name);
+                await client.Assets.DeleteAsync(resourceGroupName, accountName, assetName);
             }
         }
         // </CleanUp>
