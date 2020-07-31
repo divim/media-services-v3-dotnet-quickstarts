@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 using Microsoft.Azure.Management.Media;
 using Microsoft.Azure.Management.Media.Models;
+using Microsoft.Azure.Storage.Blob;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Microsoft.Rest;
 using Microsoft.Rest.Azure.Authentication;
-using Microsoft.WindowsAzure.Storage.Blob;
 
 namespace EncodeAndStreamFiles
 {
@@ -40,8 +40,7 @@ namespace EncodeAndStreamFiles
 
                 Console.Error.WriteLine($"{exception.Message}");
 
-                ApiErrorException apiException = exception.GetBaseException() as ApiErrorException;
-                if (apiException != null)
+                if (exception.GetBaseException() is ApiErrorException apiException)
                 {
                     Console.Error.WriteLine(
                         $"ERROR: API call failed with error code '{apiException.Body.Error.Code}' and message '{apiException.Body.Error.Message}'.");
@@ -74,17 +73,17 @@ namespace EncodeAndStreamFiles
             string outputAssetName = $"output-{uniqueness}";
 
             // Ensure that you have the desired encoding Transform. This is really a one time setup operation.
-            Transform transform = await GetOrCreateTransformAsync(client, config.ResourceGroup, config.AccountName, AdaptiveStreamingTransformName);
+            _ = await GetOrCreateTransformAsync(client, config.ResourceGroup, config.AccountName, AdaptiveStreamingTransformName);
 
             // Output from the encoding Job must be written to an Asset, so let's create one
             Asset outputAsset = await CreateOutputAssetAsync(client, config.ResourceGroup, config.AccountName, outputAssetName);
 
-            Job job = await SubmitJobAsync(client, config.ResourceGroup, config.AccountName, AdaptiveStreamingTransformName, outputAsset.Name, jobName);
+            _ = await SubmitJobAsync(client, config.ResourceGroup, config.AccountName, AdaptiveStreamingTransformName, outputAsset.Name, jobName);
 
             // In this demo code, we will poll for Job status
             // Polling is not a recommended best practice for production applications because of the latency it introduces.
             // Overuse of this API may trigger throttling. Developers should instead use Event Grid.
-            job = await WaitForJobToFinishAsync(client, config.ResourceGroup, config.AccountName, AdaptiveStreamingTransformName, jobName);
+            Job job = await WaitForJobToFinishAsync(client, config.ResourceGroup, config.AccountName, AdaptiveStreamingTransformName, jobName);
 
             if (job.State == JobState.Finished)
             {
@@ -212,7 +211,7 @@ namespace EncodeAndStreamFiles
                 // Name collision! In order to get the sample to work, let's just go ahead and create a unique asset name
                 // Note that the returned Asset can have a different name than the one specified as an input parameter.
                 // You may want to update this part to throw an Exception instead, and handle name collisions differently.
-                string uniqueness = $"-{Guid.NewGuid().ToString("N")}";
+                string uniqueness = $"-{Guid.NewGuid():N}";
                 outputAssetName += uniqueness;
                 
                 Console.WriteLine("Warning – found an existing Asset with name = " + assetName);
@@ -290,8 +289,7 @@ namespace EncodeAndStreamFiles
         {
             const int SleepIntervalMs = 60 * 1000;
 
-            Job job = null;
-
+            Job job;
             do
             {
                 job = await client.Jobs.GetAsync(resourceGroupName, accountName, transformName, jobName);
@@ -387,11 +385,13 @@ namespace EncodeAndStreamFiles
 
             foreach (StreamingPath path in paths.StreamingPaths)
             {
-                UriBuilder uriBuilder = new UriBuilder();
-                uriBuilder.Scheme = "https";
-                uriBuilder.Host = streamingEndpoint.HostName;
+                UriBuilder uriBuilder = new UriBuilder
+                {
+                    Scheme = "https",
+                    Host = streamingEndpoint.HostName,
 
-                uriBuilder.Path = path.Paths[0];
+                    Path = path.Paths[0]
+                };
                 streamingUrls.Add(uriBuilder.ToString());
             }
 
@@ -450,8 +450,7 @@ namespace EncodeAndStreamFiles
 
                 foreach (IListBlobItem blobItem in segment.Results)
                 {
-                    CloudBlockBlob blob = blobItem as CloudBlockBlob;
-                    if (blob != null)
+                    if (blobItem is CloudBlockBlob blob)
                     {
                         string path = Path.Combine(directory, blob.Name);
 
@@ -485,7 +484,6 @@ namespace EncodeAndStreamFiles
             string resourceGroupName,
             string accountName,
             string transformName,
-            string contentKeyPolicyName,
             List<string> assetNames,
             string jobName)
         {
