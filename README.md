@@ -41,7 +41,7 @@ The following NuGet packages were added to the project:
 |Microsoft.Rest.ClientRuntime.Azure.Authentication|ADAL authentication library for Azure SDK for NET|
 |Microsoft.Extensions.Configuration.EnvironmentVariables|Read configuration values from environment variables and local JSON files|
 |Microsoft.Extensions.Configuration.Json|Read configuration values from environment variables and local JSON files
-|WindowsAzure.Storage|Storage SDK|
+|Microsoft.Azure.Storage.Blob|Blob Storage SDK|
 
 ## To run the project in the solution
 
