@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.Azure.Management.Media;
 using Microsoft.Azure.Management.Media.Models;
-using Microsoft.Azure.Storage.Blob;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Clients.ActiveDirectory;
 using Microsoft.Rest;
@@ -35,7 +35,7 @@ namespace EncodeAndStreamFiles
             {
                 if (exception.Source.Contains("ActiveDirectory"))
                 {
-                     Console.Error.WriteLine("TIP: Make sure that you have filled out the appsettings.json file before running this sample.");
+                    Console.Error.WriteLine("TIP: Make sure that you have filled out the appsettings.json file before running this sample.");
                 }
 
                 Console.Error.WriteLine($"{exception.Message}");
@@ -50,6 +50,7 @@ namespace EncodeAndStreamFiles
             Console.WriteLine("Press Enter to continue.");
             Console.ReadLine();
         }
+
 
         /// <summary>
         /// Run the sample async.
@@ -106,6 +107,7 @@ namespace EncodeAndStreamFiles
         }
         // </RunAsync>
 
+
         /// <summary>
         /// Create the ServiceClientCredentials object based on the credentials
         /// supplied in local configuration file.
@@ -125,6 +127,7 @@ namespace EncodeAndStreamFiles
         }
         // </GetCredentialsAsync>
 
+
         /// <summary>
         /// Creates the AzureMediaServicesClient object based on the credentials
         /// supplied in local configuration file.
@@ -142,6 +145,7 @@ namespace EncodeAndStreamFiles
             };
         }
         // </CreateMediaServicesClient>
+
 
         /// <summary>
         /// If the specified transform exists, get that transform.
@@ -213,14 +217,15 @@ namespace EncodeAndStreamFiles
                 // You may want to update this part to throw an Exception instead, and handle name collisions differently.
                 string uniqueness = $"-{Guid.NewGuid():N}";
                 outputAssetName += uniqueness;
-                
+
                 Console.WriteLine("Warning – found an existing Asset with name = " + assetName);
-                Console.WriteLine("Creating an Asset with this name instead: " + outputAssetName);                
+                Console.WriteLine("Creating an Asset with this name instead: " + outputAssetName);
             }
 
             return await client.Assets.CreateOrUpdateAsync(resourceGroupName, accountName, outputAssetName, asset);
         }
         // </CreateOutputAsset>
+
 
         /// <summary>
         /// Submits a request to Media Services to apply the specified Transform to a given input video.
@@ -234,7 +239,7 @@ namespace EncodeAndStreamFiles
         /// <returns></returns>
         // <SubmitJob>
         private static async Task<Job> SubmitJobAsync(IAzureMediaServicesClient client,
-            string resourceGroup,
+            string resourceGroupName,
             string accountName,
             string transformName,
             string outputAssetName,
@@ -256,7 +261,7 @@ namespace EncodeAndStreamFiles
             // to get the existing job. In Media Services v3, Get methods on entities returns null 
             // if the entity doesn't exist (a case-insensitive check on the name).
             Job job = await client.Jobs.CreateAsync(
-                resourceGroup,
+                resourceGroupName,
                 accountName,
                 transformName,
                 jobName,
@@ -318,6 +323,7 @@ namespace EncodeAndStreamFiles
         }
         // </WaitForJobToFinish>
 
+
         /// <summary>
         /// Creates a StreamingLocator for the specified asset and with the specified streaming policy name.
         /// Once the StreamingLocator is created the output asset is available to clients for playback.
@@ -331,13 +337,13 @@ namespace EncodeAndStreamFiles
         // <CreateStreamingLocator>
         private static async Task<StreamingLocator> CreateStreamingLocatorAsync(
             IAzureMediaServicesClient client,
-            string resourceGroup,
+            string resourceGroupName,
             string accountName,
             string assetName,
             string locatorName)
         {
             StreamingLocator locator = await client.StreamingLocators.CreateAsync(
-                resourceGroup,
+                resourceGroupName,
                 accountName,
                 locatorName,
                 new StreamingLocator
@@ -349,6 +355,7 @@ namespace EncodeAndStreamFiles
             return locator;
         }
         // </CreateStreamingLocator>
+
 
         /// <summary>
         /// Checks if the "default" streaming endpoint is in the running state,
@@ -411,7 +418,7 @@ namespace EncodeAndStreamFiles
         // <DownloadResults>
         private static async Task DownloadOutputAssetAsync(
             IAzureMediaServicesClient client,
-            string resourceGroup,
+            string resourceGroupName,
             string accountName,
             string assetName,
             string outputFolderName)
@@ -421,48 +428,47 @@ namespace EncodeAndStreamFiles
                 Directory.CreateDirectory(outputFolderName);
             }
 
-            AssetContainerSas assetContainerSas = await client.Assets.ListContainerSasAsync(
-                resourceGroup,
-                accountName,
-                assetName,
-                permissions: AssetContainerPermission.Read,
-                expiryTime: DateTime.UtcNow.AddHours(1).ToUniversalTime());
+            // Use Media Service and Storage APIs to download the output files to a local folder
+            AssetContainerSas assetContainerSas = client.Assets.ListContainerSas(
+                            resourceGroupName,
+                            accountName,
+                            assetName,
+                            permissions: AssetContainerPermission.Read,
+                            expiryTime: DateTime.UtcNow.AddHours(1).ToUniversalTime()
+                            );
 
             Uri containerSasUrl = new Uri(assetContainerSas.AssetContainerSasUrls.FirstOrDefault());
-            CloudBlobContainer container = new CloudBlobContainer(containerSasUrl);
+            BlobContainerClient container = new BlobContainerClient(containerSasUrl);
 
             string directory = Path.Combine(outputFolderName, assetName);
             Directory.CreateDirectory(directory);
 
-            Console.WriteLine($"Downloading output results to '{directory}'...");
+            Console.WriteLine("Downloading results to {0}.", directory);
 
-            BlobContinuationToken continuationToken = null;
-            IList<Task> downloadTasks = new List<Task>();
+            string continuationToken = null;
 
+            // Call the listing operation and enumerate the result segment.
+            // When the continuation token is empty, the last segment has been returned
+            // and execution can exit the loop.
             do
             {
-                // A non-negative integer value that indicates the maximum number of results to be returned at a time,
-                // up to the per-operation limit of 5000. If this value is null, the maximum possible number of results
-                // will be returned, up to 5000.
-                int? ListBlobsSegmentMaxResult = null;    
-                
-                BlobResultSegment segment = await container.ListBlobsSegmentedAsync(null, true, BlobListingDetails.None, ListBlobsSegmentMaxResult, continuationToken, null, null);
+                var resultSegment = container.GetBlobs().AsPages(continuationToken);
 
-                foreach (IListBlobItem blobItem in segment.Results)
+                foreach (Azure.Page<BlobItem> blobPage in resultSegment)
                 {
-                    if (blobItem is CloudBlockBlob blob)
+                    foreach (BlobItem blobItem in blobPage.Values)
                     {
-                        string path = Path.Combine(directory, blob.Name);
 
-                        downloadTasks.Add(blob.DownloadToFileAsync(path, FileMode.Create));
+                        var blobClient = container.GetBlobClient(blobItem.Name);
+                        string filename = Path.Combine(directory, blobItem.Name);
+                        await blobClient.DownloadToAsync(filename);
                     }
+
+                    // Get the continuation token and loop until it is empty.
+                    continuationToken = blobPage.ContinuationToken;
                 }
 
-                continuationToken = segment.ContinuationToken;
-            }
-            while (continuationToken != null);
-
-            await Task.WhenAll(downloadTasks);
+            } while (continuationToken != "");
 
             Console.WriteLine("Download complete.");
         }
@@ -478,6 +484,8 @@ namespace EncodeAndStreamFiles
         /// <param name="resourceGroupName"></param>
         /// <param name="accountName"></param>
         /// <param name="transformName"></param>
+        /// <param name="assetNames"></param>
+        /// <param name="jobName"></param>
         // <CleanUp>
         private static async Task CleanUpAsync(
             IAzureMediaServicesClient client,
