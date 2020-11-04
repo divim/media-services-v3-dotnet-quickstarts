@@ -4,19 +4,19 @@ languages:
 - csharp
 products:
 - azure
-description: "The project in this repository was created using Visual Studio 2017. It targets netcoreapp2.0. The code in the project uses 'async main',"
+description: "The project in this repository was created using Visual Studio 2019. It targets netcoreapp3.1. The code in the project uses 'async main',"
 urlFragment: media-services-v3-dotnet-quickstarts
 ---
 
 # Azure Media Services v3 quickstart starter samples
 
 ## NOTE
- 
+
 You can find the latest and most extensive .NET samples in the [Azure Media Services v3](https://github.com/Azure-Samples/media-services-v3-dotnet) repository.
 
 ## Overview
 
-The project in this repository was created using Visual Studio 2017. It targets netcoreapp2.0. The code in the project uses 'async main', which is available starting with C# 7.1. See [this blog](https://blogs.msdn.microsoft.com/benwilli/2017/12/08/async-main-is-available-but-hidden/) for more details.
+The project in this repository was created using Visual Studio 2019. It targets netcoreapp3.1. The code in the project uses 'async main', which is available starting with C# 7.1. See [this blog](https://blogs.msdn.microsoft.com/benwilli/2017/12/08/async-main-is-available-but-hidden/) for more details.
 
 The project supports the Azure Media Services v3 quickstarts article:
 
@@ -28,12 +28,12 @@ The project supports the Azure Media Services v3 quickstarts article:
 
 To run samples in this repository, you need:
 
-* Visual Studio 2017 or Visual Studio Code
+* Visual Studio 2019 or Visual Studio Code
 * An Azure Media Services account. See the steps described in [Create a Media Services account](https://docs.microsoft.com/azure/media-services/latest/create-account-cli-quickstart).
 
-## NuGet packages 
+## NuGet packages
 
-The following NuGet packages were added to the project: 
+The following NuGet packages were added to the project:
 
 |Package|Description|
 |---|---|
@@ -41,7 +41,7 @@ The following NuGet packages were added to the project:
 |Microsoft.Rest.ClientRuntime.Azure.Authentication|ADAL authentication library for Azure SDK for NET|
 |Microsoft.Extensions.Configuration.EnvironmentVariables|Read configuration values from environment variables and local JSON files|
 |Microsoft.Extensions.Configuration.Json|Read configuration values from environment variables and local JSON files
-|Microsoft.Azure.Storage.Blob|Blob Storage SDK|
+|Azure.Storage.Blobs|Blob Storage SDK|
 
 ## To run the project in the solution
 
