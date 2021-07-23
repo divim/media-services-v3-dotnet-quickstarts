@@ -287,3 +287,4 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 /AMSV3Quickstarts/packages
+/AMSV3Quickstarts/.env
