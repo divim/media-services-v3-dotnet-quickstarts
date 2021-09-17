@@ -52,7 +52,7 @@ namespace EncodeAndStreamFiles
 
                 Console.Error.WriteLine($"{exception.Message}");
 
-                if (exception.GetBaseException() is ApiErrorException apiException)
+                if (exception.GetBaseException() is ErrorResponseException apiException)
                 {
                     Console.Error.WriteLine(
                         $"ERROR: API call failed with error code '{apiException.Body.Error.Code}' and message '{apiException.Body.Error.Message}'.");
@@ -176,11 +176,21 @@ namespace EncodeAndStreamFiles
             string accountName,
             string transformName)
         {
-            // Does a Transform already exist with the desired name? Assume that an existing Transform with the desired name
-            // also uses the same recipe or Preset for processing content.
-            Transform transform = await client.Transforms.GetAsync(resourceGroupName, accountName, transformName);
 
-            if (transform == null)
+            bool createTransform = false;
+            Transform transform = null;
+            try
+            {
+                // Does a transform already exist with the desired name? Assume that an existing Transform with the desired name
+                // also uses the same recipe or Preset for processing content.
+                transform = client.Transforms.Get(resourceGroupName, accountName, transformName);
+            }
+            catch (ErrorResponseException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                createTransform = true;
+            }
+
+            if (createTransform)
             {
                 // You need to specify what you want it to produce as an output
                 TransformOutput[] output = new TransformOutput[]
@@ -200,7 +210,6 @@ namespace EncodeAndStreamFiles
                 // Create the Transform with the output defined above
                 transform = await client.Transforms.CreateOrUpdateAsync(resourceGroupName, accountName, transformName, output);
             }
-
             return transform;
         }
         // </EnsureTransformExists>
@@ -217,24 +226,9 @@ namespace EncodeAndStreamFiles
         // <CreateOutputAsset>
         private static async Task<Asset> CreateOutputAssetAsync(IAzureMediaServicesClient client, string resourceGroupName, string accountName, string assetName)
         {
-            // Check if an Asset already exists
-            Asset outputAsset = await client.Assets.GetAsync(resourceGroupName, accountName, assetName);
-            Asset asset = new();
-            string outputAssetName = assetName;
-
-            if (outputAsset != null)
-            {
-                // Name collision! In order to get the sample to work, let's just go ahead and create a unique asset name
-                // Note that the returned Asset can have a different name than the one specified as an input parameter.
-                // You may want to update this part to throw an Exception instead, and handle name collisions differently.
-                string uniqueness = $"-{Guid.NewGuid():N}";
-                outputAssetName += uniqueness;
-
-                Console.WriteLine("Warning – found an existing Asset with name = " + assetName);
-                Console.WriteLine("Creating an Asset with this name instead: " + outputAssetName);
-            }
-
-            return await client.Assets.CreateOrUpdateAsync(resourceGroupName, accountName, outputAssetName, asset);
+            Asset outputAsset = new Asset();
+            Console.WriteLine("Creating an output asset...");
+            return await client.Assets.CreateOrUpdateAsync(resourceGroupName, accountName, assetName, outputAsset);
         }
         // </CreateOutputAsset>
 
@@ -392,12 +386,9 @@ namespace EncodeAndStreamFiles
 
             StreamingEndpoint streamingEndpoint = await client.StreamingEndpoints.GetAsync(resourceGroupName, accountName, DefaultStreamingEndpointName);
 
-            if (streamingEndpoint != null)
+            if (streamingEndpoint.ResourceState != StreamingEndpointResourceState.Running)
             {
-                if (streamingEndpoint.ResourceState != StreamingEndpointResourceState.Running)
-                {
-                    await client.StreamingEndpoints.StartAsync(resourceGroupName, accountName, DefaultStreamingEndpointName);
-                }
+                await client.StreamingEndpoints.StartAsync(resourceGroupName, accountName, DefaultStreamingEndpointName);
             }
 
             ListPathsResponse paths = await client.StreamingLocators.ListPathsAsync(resourceGroupName, accountName, locatorName);
